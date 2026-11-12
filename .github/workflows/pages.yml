@@ -1,0 +1,68 @@
+
+name: Publish Takeda Guideline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download official guideline images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p images
+
+          for file in \
+            ano_image_color.jpg \
+            guideline{1..13}.jpg \
+            tateyokohi_ng20221104.jpg \
+            fukidashi_ng20221104.jpg \
+            Face_ng20221104.jpg \
+            tayo_ng20221104.jpg
+          do
+            curl --fail --location --retry 3 \
+              "https://suneight.co.jp/takedaguide/img/$file" \
+              --output "images/$file"
+          done
+
+      - name: Set local image paths
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          html = p.read_text(encoding="utf-8")
+          for base in [
+              "https://suneight.design/takedaguide/img/",
+              "https://suneight.co.jp/takedaguide/img/",
+          ]:
+              html = html.replace(base, "images/")
+          p.write_text(html, encoding="utf-8")
+          PY
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
